@@ -186,7 +186,7 @@ def record_frames(desc=None):
     video_writer.release()
 
     #Use ffmpeg to convert to mp4 for better browser support
-    ffmpeg.input("recordings/" + video_fn + ".avi").output("recordings/" + video_fn + ".mp4", vcodec="libx264", acodec="aac", threads=2, bv='500K', preset='ultrafast').run()
+    ffmpeg.input("recordings/" + video_fn + ".avi").output("recordings/" + video_fn + ".mp4", vcodec="libx264", acodec="aac", threads=2, video_bitrate='500K', preset='ultrafast').run()
     #Clear up the old file
     os.remove("recordings/" + video_fn + ".avi")
 

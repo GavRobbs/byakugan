@@ -14,10 +14,14 @@ fi
 echo "Setting up virtual environment and installing dependencies."
 $PYTHON -m venv ./env || { echo "Failed to create virtual environment."; exit 1;}
 source env/bin/activate || { echo "Failed to activate virtual environment."; exit 1;}
-$PYTHON -m pip install -r requirements.txt || { echo "Failed to install dependencies"; exit 1;}
+env/bin/python -m pip install -r requirements.txt || { echo "Failed to install dependencies"; exit 1;}
 echo "Starting Byakugan's backend"
-$PYTHON stream.py &
+env/bin/python stream.py &
 
+echo "Switching to the frontend folder."
 cd ../byakugan-fe
+echo "Installing NPM dependencies."
 npm install
-npm run dev
+
+echo "Starting the app."
+npm run dev &

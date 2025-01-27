@@ -19,4 +19,5 @@ echo "Starting Byakugan's backend"
 $PYTHON stream.py &
 
 cd ../byakugan-fe
+npm install
 npm run dev

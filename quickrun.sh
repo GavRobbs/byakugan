@@ -24,4 +24,4 @@ echo "Installing NPM dependencies."
 npm install
 
 echo "Starting the app."
-npm run dev &
+npm run dev -- --host &

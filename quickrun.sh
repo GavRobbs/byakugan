@@ -13,8 +13,8 @@ fi
 
 echo "Setting up virtual environment and installing dependencies."
 $PYTHON -m venv env
-source env/bin/activate
-$PYTHON -m pip install -r requirements.txt
+source env/bin/activate || { echo "Failed to activate virtual environment."; exit 1;}
+$PYTHON -m pip install -r requirements.txt || { echo "Failed to install dependencies"; exit 1;}
 echo "Starting Byakugan's backend"
 $PYTHON stream.py &
 

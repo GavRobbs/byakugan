@@ -10,6 +10,7 @@ import dbutils
 import sys
 import ffmpeg
 import os
+import bot
 
 # Create our Flask app
 app = Flask(__name__)
@@ -21,8 +22,10 @@ frame_queue = queue.Queue(maxsize=35)
 # Create a thread-safe queue for recording
 recording_queue = queue.Queue(maxsize=90)
 
-#A queue for notifications
+#The first message queue takes the messages from object detection and uses them to activate the camera
+#The second one is for the Telegram API bot
 message_queue = queue.Queue(maxsize=1)
+bot_message_queue = queue.Queue(maxsize=10)
 
 recording_event = threading.Event()
 record_count = 0
@@ -38,6 +41,9 @@ frame_count = 0
 first_frame_captured = False
 bgFrame = None
 fgmask = None
+
+server_linked = False
+chat_id = None
 
 
 #Scale our frames down to help with perforamance in image processing
@@ -141,6 +147,7 @@ def handle_messages():
             msg = message_queue.get(timeout = 1)
             print(msg)
             if not recording_event.is_set():
+                bot_message_queue.put_nowait(msg)
                 record_count = 0
                 recording_thread = threading.Thread(target=record_frames, args=[msg,], daemon=False)
                 recording_thread.start()
@@ -231,6 +238,44 @@ def get_alert_detail(alert_id):
         print("Alert deleted")
         dbutils.delete_alert(sqlite_conn, sqlite_cursor, alert_id)
         return jsonify({"message" : "Alert deleted"}), 200
+    
+   
+@app.route("/setup/check_connection", methods=["GET",])
+def test_connection():
+    global server_linked
+    sqlite_conn, sqlite_cursor = dbutils.load_database("byakugan")
+    dbutils.update_setting_value(sqlite_conn, sqlite_cursor, "BYAKUGAN_SERVER_LINKED", "True")
+    server_linked = True
+
+    return Response("OK", status=200, mimetype="text/plain")
+
+@app.route("/setup/link_bot", methods=["POST",])
+def link_bot():
+    global chat_id
+    data = request.json
+    sqlite_conn, sqlite_cursor = dbutils.load_database("byakugan")
+    dbutils.update_setting_value(sqlite_conn, sqlite_cursor, "BYAKUGAN_CHAT_ID", data["chat_id"])
+    chat_id = data["chat_id"]
+
+    bot_message_queue.put_nowait("Byakugan linked to Hyuga bot")
+
+    return Response("OK", status=200, mimetype="text/plain")
+
+@app.route("/setup", methods=["GET",])
+def get_setup_status():
+    global server_linked, chat_id
+    sqlite_conn, sqlite_cursor = dbutils.load_database("byakugan")
+    sls_str = dbutils.get_setting_value(sqlite_conn, sqlite_cursor,"BYAKUGAN_SERVER_LINKED")
+
+    if sls_str == "True":
+        server_linked = True
+
+    chat_id = dbutils.get_setting_value(sqlite_conn, sqlite_cursor, "BYAKUGAN_CHAT_ID")
+
+    if server_linked == True and chat_id is not None:
+        return jsonify({"status" : "complete"}), 200
+    else:
+        return jsonify({"status" : "incomplete"}), 200
 
 
 @app.route("/thumbnails/<filename>")
@@ -285,9 +330,11 @@ if __name__ == "__main__":
     capture_thread = threading.Thread(target=capture_and_process_frames, daemon=True)
     pass_thread = threading.Thread(target=pass_frame, daemon=True)
     messaging_thread = threading.Thread(target=handle_messages, daemon=True)
+    bot_thread = threading.Thread(target=bot.bot_main, args=[bot_message_queue,], daemon=True)
 
     capture_thread.start()
     pass_thread.start()
+    bot_thread.start()
     messaging_thread.start()
 
     app.run('0.0.0.0', port=5000)

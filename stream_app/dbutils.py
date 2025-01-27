@@ -19,8 +19,27 @@ def load_database(db_name="byakugan"):
     cursor.execute("SELECT name FROM sqlite_master WHERE name='Alerts' AND type='table'")
     if cursor.fetchone() is None:
         raise RuntimeError("Error creating Alerts table in database")
+    
+    cursor.execute("CREATE TABLE IF NOT EXISTS Settings ( name TEXT PRIMARY KEY, value TEXT NOT NULL )")
+    cursor.execute("SELECT name FROM sqlite_master WHERE name='Settings' and type='table'")
+    if cursor.fetchone() is None:
+        raise RuntimeError("Error creating Settings table in database")
 
     return conn, cursor
+
+def update_setting_value(conn, cursor, name, value):
+    cursor.execute("INSERT OR REPLACE INTO Settings (name, value) VALUES (?, ?)", (name, value))
+    conn.commit()
+
+def get_setting_value(conn, cursor, name, defaultValue=None):
+    cursor.execute("SELECT value FROM Settings WHERE name = ?", (name, ))
+    row = cursor.fetchone()
+
+    if row is None:
+        return defaultValue
+    else:
+        return row[0]
+
 
 def create_recording(conn, cursor, desc=None):
     cursor.execute("SELECT seq + 1 AS next_id FROM sqlite_sequence WHERE name = 'Recordings'")

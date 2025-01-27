@@ -46,7 +46,6 @@ export default function LiveFeed(){
                 .then((response) => response.json())
                 .then((result) => {
 
-                    console.log(result);
                     startRecordingTimer();
 
                 })
@@ -64,8 +63,6 @@ export default function LiveFeed(){
             })
                 .then((response) => response.json())
                 .then((result) => {
-
-                    console.log(result);
 
                 })
                 .catch((err) => {

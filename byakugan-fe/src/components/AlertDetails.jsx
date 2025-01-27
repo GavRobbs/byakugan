@@ -27,7 +27,6 @@ export default function AlertDetails(){
         })
         .then(response => response.json())
         .then(data => {
-            console.log(data);
             setAlertData(data);
         })
     }, []);

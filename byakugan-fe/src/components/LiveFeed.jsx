@@ -1,10 +1,13 @@
-import { useEffect, useState, useRef } from "react"
+import { useEffect, useState, useRef, useContext } from "react"
+import { AppContext } from "./AppContext";
 
 export default function LiveFeed(){
 
+    const {settingsData} = useContext(AppContext);
+
     //The first variable is the actual value of recording or not, the second is if it should be sent to the server
     const [isRecording, setIsRecording] = useState([false, false]);
-    const record_url = "http://192.168.0.185:5000/record";
+    const record_url = `http://${settingsData.server_ip}/record`;
 
 
     //The timer is used to automatically activate/deactivate the button
@@ -98,7 +101,7 @@ export default function LiveFeed(){
     return ( 
         <main>
             <h1>Live Feed</h1>
-            <img src="http://192.168.0.185:5000/" className="mjpg-feed"/>
+            <img src={`http://${settingsData.server_ip}/`} className="mjpg-feed"/>
             {
                 renderButton()
             }

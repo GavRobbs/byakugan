@@ -1,15 +1,17 @@
-import { useEffect, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 import {toast} from "react-hot-toast";
+import { AppContext } from "./AppContext";
 
 
 export default function AlertDetails(){
 
     const {id} = useParams();
     const navigator = useNavigate();
+    const {settingsData} = useContext(AppContext);
 
-    const details_url = "http://192.168.0.185:5000/alerts/" + id;
-    const video_url = "http://192.168.0.185:5000/recordings/";
+    const details_url = `http://${settingsData.server_ip}/alerts/` + id;
+    const video_url = `http://${settingsData.server_ip}/recordings/`;
 
     const [alertData, setAlertData] = useState({
         id: "",

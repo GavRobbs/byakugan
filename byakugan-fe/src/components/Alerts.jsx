@@ -1,11 +1,15 @@
 import { useEffect, useState } from "react"
 import { useNavigate } from "react-router";
+import { useContext } from "react";
+import { AppContext } from "./AppContext";
 
 export default function Alerts(){
 
     let [alerts, setAlerts] = useState([]);
-    const alerts_url = "http://192.168.0.185:5000/alerts";
-    const thumbnail_url = "http://192.168.0.185:5000/thumbnails/";
+    const {settingsData} = useContext(AppContext);
+
+    const alerts_url = `http://${settingsData.server_ip}/alerts`;
+    const thumbnail_url = `http://${settingsData.server_ip}/thumbnails/`;
 
     const navigate = useNavigate();
 

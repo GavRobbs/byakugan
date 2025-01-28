@@ -14,14 +14,28 @@ def get_updates(offset = None, timeout=15):
     response = requests.get(f"{BASE_URL}/getUpdates", params={
         "offset": offset,
         "timeout" : timeout
-    }, timeout=timeout)
+    }, timeout=15)
     return response.json()
 
 def send_message(chat_id, msg_txt, timeout=15):
     response = requests.post(f"{BASE_URL}/sendMessage", json={
         "chat_id" : chat_id,
         "text" : msg_txt 
-    }, timeout=timeout)
+    }, timeout=15)
+
+def send_message_with_img(chat_id, msg_txt, img_path, timeout=15):
+
+    files = {
+        "photo" : open(f'./thumbnails/{img_path}', 'rb')
+    }
+
+    payload = {
+        "chat_id" : chat_id,
+        "caption" : msg_txt,
+        "parse_mode" : "Markdown"
+    }
+
+    response = requests.post(f"{BASE_URL}/sendPhoto", data=payload, files=files, timeout=timeout)
 
 def bot_main(bot_message_queue):
 
@@ -47,16 +61,16 @@ def bot_main(bot_message_queue):
         if chat_id_db is not None:
             try:
                 message = bot_message_queue.get(timeout = 1)
-                send_message(chat_id_db, message)
+                if message['type'] == "system":
+                    send_message(chat_id_db, message.text)
+                elif message['type'] == "alert":
+                    send_message_with_img(chat_id_db, message['text'], message['image'])
             except queue.Empty:
-                print("BQ empty")
-                continue
-            except queue.Full:
-                print("BQ FULL")
                 continue
             except Exception as e:
                 print(f'Error in bot handler: {e}')
         else:
+            print("Fetching ID")
             chat_id_db = dbutils.get_setting_value(sqlite_conn, sqlite_cursor, "BYAKUGAN_CHAT_ID")            
                     
 

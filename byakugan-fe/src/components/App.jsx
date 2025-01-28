@@ -21,12 +21,10 @@ export default function App(){
             method: "GET",
             headers: { "Content-Type" : "application/json"}
         })
-        .then(response => response.json())
+        .then(response => response.text())
         .then(data => {
 
-            console.log(data);
-
-            if(data.status == "complete"){
+            if(data == "COMPLETE"){
                 console.log("Setup complete");
                 setIsSetup([true, true]);
             } else{
@@ -84,16 +82,12 @@ export default function App(){
         .then(response => {
 
             if(response.ok){
-                console.log("Server successfully found");
-                console.log(ip_addr);
                 updateServerIP(ip_addr);
-                console.log("Changing is setup")
                 setIsSetup([true, false]);
             } else{
                 console.log("NOT OK");
             }
 
-            
         })
         .catch(err => {
 

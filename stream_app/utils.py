@@ -148,7 +148,7 @@ def match_objects(detections, frame_count, old_to, message_queue_add_func, dista
         #If we've picked up 3 or less objects, we can dump details in the text message
         complete_msg = ""
         for t in to_notify:
-            body_size = "Small " if t.area < 13000 else "Big "
+            body_size = "Small" if t.area < 13000 else "Big"
             complete_msg = complete_msg + f'{body_size} object detected on {"left" if tracked.centroid[0] > 400 else "right"} side.'
             message_queue_add_func(complete_msg)
     else:

@@ -80,7 +80,7 @@ def get_alerts_data(conn, cursor, records_per_page, page_no):
 
 def get_alert_details(conn, cursor, alert_id):
     cursor.execute("""
-                   SELECT Alerts.id, Alerts.timestamp, Alerts.description, Recordings.path FROM Recordings 
+                   SELECT Alerts.id, Alerts.timestamp, Alerts.description, Recordings.path, Alerts.thumbnail FROM Recordings 
                    INNER JOIN Alerts 
                    ON Recordings.id = Alerts.recording_id
                    WHERE Alerts.id = ?""", (alert_id, ))
@@ -91,7 +91,7 @@ def get_alert_details(conn, cursor, alert_id):
     
     ts_readable = datetime.fromtimestamp(row[1]).strftime("%B %d, %Y %I:%M:%S %p")
     
-    return {"id" : row[0], "timestamp" : ts_readable, "description" : row[2], "video" : row[3] }
+    return {"id" : row[0], "timestamp" : ts_readable, "description" : row[2], "video" : row[3], "thumbnail" : row[4] }
 
 def delete_alert(conn, cursor, alert_id):
     cursor.execute("""

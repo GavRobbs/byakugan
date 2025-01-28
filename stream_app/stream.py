@@ -147,7 +147,6 @@ def handle_messages():
             msg = message_queue.get(timeout = 1)
             print(msg)
             if not recording_event.is_set():
-                bot_message_queue.put_nowait(msg)
                 record_count = 0
                 recording_thread = threading.Thread(target=record_frames, args=[msg,], daemon=False)
                 recording_thread.start()
@@ -159,7 +158,7 @@ def handle_messages():
         time.sleep(2)
 
 def record_frames(desc=None):
-    global recording_queue, recording_event, record_count
+    global recording_queue, recording_event, record_count, bot_message_queue
     sqlite_conn = None
     sqlite_cursor = None
 
@@ -184,6 +183,16 @@ def record_frames(desc=None):
             if firstFrame:
                 firstFrame = False
                 dbutils.add_thumbnail_to_alert(sqlite_conn, sqlite_cursor, alert_id, current_recorded_frame)
+                alert_details = dbutils.get_alert_details(sqlite_conn, sqlite_cursor, alert_id)
+
+                try:
+                    bot_message_queue.put_nowait({
+                        "type": "alert",
+                        "text" : f'*New event detected!* \n\n*Description:* {alert_details['description']}',
+                        "image" : alert_details['thumbnail']                    
+                    })
+                except queue.Full:
+                    print("Bot message queue is full")
 
         except queue.Empty:
             pass
@@ -251,13 +260,16 @@ def test_connection():
 
 @app.route("/setup/link_bot", methods=["POST",])
 def link_bot():
-    global chat_id
+    global chat_id, bot_message_queue
     data = request.json
     sqlite_conn, sqlite_cursor = dbutils.load_database("byakugan")
     dbutils.update_setting_value(sqlite_conn, sqlite_cursor, "BYAKUGAN_CHAT_ID", data["chat_id"])
     chat_id = data["chat_id"]
 
-    bot_message_queue.put_nowait("Byakugan linked to Hyuga bot")
+    bot_message_queue.put_nowait({
+        "type": "system",
+        "text": "Byakugan linked to Hyuga bot"
+    })
 
     return Response("OK", status=200, mimetype="text/plain")
 
@@ -273,9 +285,9 @@ def get_setup_status():
     chat_id = dbutils.get_setting_value(sqlite_conn, sqlite_cursor, "BYAKUGAN_CHAT_ID")
 
     if server_linked == True and chat_id is not None:
-        return jsonify({"status" : "complete"}), 200
+        return Response("COMPLETE", status=200, mimetype="text/plain")
     else:
-        return jsonify({"status" : "incomplete"}), 200
+        return Response("INCOMPLETE", status=200, mimetype="text/plain")
 
 
 @app.route("/thumbnails/<filename>")

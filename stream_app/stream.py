@@ -11,6 +11,7 @@ import sys
 import ffmpeg
 import os
 import bot
+import socket
 
 # Create our Flask app
 app = Flask(__name__)
@@ -62,7 +63,9 @@ def rescaleAndNormalizeFrame(frame, w=800, h=600):
 
 def capture_and_process_frames():
     global frame_queue, captured_frame, tracked_objects, frame_count, first_frame_captured, bgFrame, fgmask, message_queue, recording_queue
-    camera = cv.VideoCapture(0)
+    source = get_camera_feed_source()
+    print("The video source is " + str(source))
+    camera = cv.VideoCapture(source)
     camera.set(cv.CAP_PROP_AUTOFOCUS, 0) # turn the autofocus off
 
     if not camera.isOpened():
@@ -163,13 +166,13 @@ def record_frames(desc=None):
     sqlite_cursor = None
 
     try:
-        sqlite_conn, sqlite_cursor = dbutils.load_database("byakugan")
+        sqlite_conn, sqlite_cursor = dbutils.load_database()
         video_fn, alert_id = dbutils.create_recording(sqlite_conn, sqlite_cursor, desc)
     except RuntimeError:
         print("Error loading database")
         sys.exit(1)
 
-    video_writer = cv.VideoWriter("recordings/" + video_fn + ".avi", cv.VideoWriter.fourcc(*'XVID'), 30, (800, 600))
+    video_writer = cv.VideoWriter("/app/recordings/" + video_fn + ".avi", cv.VideoWriter.fourcc(*'XVID'), 30, (800, 600))
 
     firstFrame = True
 
@@ -186,11 +189,13 @@ def record_frames(desc=None):
                 alert_details = dbutils.get_alert_details(sqlite_conn, sqlite_cursor, alert_id)
 
                 try:
+                    ip_address = socket.gethostbyname(socket.gethostname())
                     bot_message_queue.put_nowait({
                         "type": "alert",
-                        "text" : f'*New event detected!* \n\n*Description:* {alert_details['description']}',
+                        "text" : f'*New event detected!* \n\n*Description:* {alert_details['description']} \n\n Review the footage [here]({"http://192.168.0.185" + ":8080/alerts/" + str(alert_id)}).',
                         "image" : alert_details['thumbnail']                    
                     })
+                    print("Adding message to queue")
                 except queue.Full:
                     print("Bot message queue is full")
 
@@ -202,15 +207,15 @@ def record_frames(desc=None):
     video_writer.release()
 
     #Use ffmpeg to convert to mp4 for better browser support
-    ffmpeg.input("recordings/" + video_fn + ".avi").output("recordings/" + video_fn + ".mp4", vcodec="libx264", acodec="aac", threads=2, video_bitrate='500K', preset='ultrafast').run()
+    ffmpeg.input("/app/recordings/" + video_fn + ".avi").output("/app/recordings/" + video_fn + ".mp4", vcodec="libx264", acodec="aac", threads=2, video_bitrate='500K', preset='ultrafast').run(quiet=True)
     #Clear up the old file
-    os.remove("recordings/" + video_fn + ".avi")
+    os.remove("/app/recordings/" + video_fn + ".avi")
 
 
 
 def generate_stream():
     #This is a generator function used to create the stream response
-    global captured_frame, lock
+    global captured_frame
     while True:
         if captured_frame is not None:
             _, buffer = cv.imencode('.jpg', captured_frame)
@@ -231,14 +236,14 @@ def get_alerts():
     if not page_no:
         page_no = 1
 
-    sqlite_conn, sqlite_cursor = dbutils.load_database("byakugan")
+    sqlite_conn, sqlite_cursor = dbutils.load_database()
     alerts = dbutils.get_alerts_data(sqlite_conn, sqlite_cursor, 5, page_no)
     return jsonify(alerts), 200
 
 @app.route("/alerts/<alert_id>", methods=["GET", "DELETE"])
 def get_alert_detail(alert_id):
 
-    sqlite_conn, sqlite_cursor = dbutils.load_database("byakugan")
+    sqlite_conn, sqlite_cursor = dbutils.load_database()
 
     if request.method == "GET":
         alert = dbutils.get_alert_details(sqlite_conn, sqlite_cursor, alert_id)
@@ -252,7 +257,7 @@ def get_alert_detail(alert_id):
 @app.route("/setup/check_connection", methods=["GET",])
 def test_connection():
     global server_linked
-    sqlite_conn, sqlite_cursor = dbutils.load_database("byakugan")
+    sqlite_conn, sqlite_cursor = dbutils.load_database()
     dbutils.update_setting_value(sqlite_conn, sqlite_cursor, "BYAKUGAN_SERVER_LINKED", "True")
     server_linked = True
 
@@ -262,7 +267,7 @@ def test_connection():
 def link_bot():
     global chat_id, bot_message_queue
     data = request.json
-    sqlite_conn, sqlite_cursor = dbutils.load_database("byakugan")
+    sqlite_conn, sqlite_cursor = dbutils.load_database()
     dbutils.update_setting_value(sqlite_conn, sqlite_cursor, "BYAKUGAN_CHAT_ID", data["chat_id"])
     chat_id = data["chat_id"]
 
@@ -276,7 +281,7 @@ def link_bot():
 @app.route("/setup", methods=["GET",])
 def get_setup_status():
     global server_linked, chat_id
-    sqlite_conn, sqlite_cursor = dbutils.load_database("byakugan")
+    sqlite_conn, sqlite_cursor = dbutils.load_database()
     sls_str = dbutils.get_setting_value(sqlite_conn, sqlite_cursor,"BYAKUGAN_SERVER_LINKED")
 
     if sls_str == "True":
@@ -292,7 +297,7 @@ def get_setup_status():
 
 @app.route("/thumbnails/<filename>")
 def get_image(filename):
-    return send_from_directory("thumbnails", filename)
+    return send_from_directory("/app/thumbnails", filename)
 
 @app.route("/recordings/<filename>")
 def get_video(filename):
@@ -301,12 +306,12 @@ def get_video(filename):
     #The as_attachment variable allows you to change the Content-Disposition
     #to determine if it displays in the browser or downloads
 
-    return send_from_directory("recordings", filename, mimetype="video/mp4", as_attachment = True if as_attachment == "yes" else False)
+    return send_from_directory("/app/recordings", filename, mimetype="video/mp4", as_attachment = True if as_attachment == "yes" else False)
 
 
 @app.route("/record", methods=["POST", "GET"])
 def recording_state():
-    global record_count, sqlite_cursor
+    global record_count
 
     #We can use get to check if we are recording or not
     if request.method == "GET":

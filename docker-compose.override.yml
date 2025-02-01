@@ -1,0 +1,36 @@
+services:
+  backend:
+    build: ./stream_app
+    container_name: backend
+    ports:
+      - "5000:5000"
+    depends_on:
+      rtmp-server:
+        condition: service_healthy
+    environment:
+      - CAMERA_FEED_SOURCE=rtmp://rtmp-server/stream/test
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    networks:
+      - byakugan_network
+    volumes:
+      - sqlite_data:/app/db
+      - thumbnails_data:/app/thumbnails
+      - recordings_data:/app/recordings
+    restart: always
+      
+  rtmp-server:
+    image: alfg/nginx-rtmp
+    container_name: rtmp-server
+    ports:
+      - "1935:1935"
+    healthcheck:
+      test: ["CMD", "netstat", "-an", "|", "grep", "1935"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    environment:
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    networks:
+      - byakugan_network

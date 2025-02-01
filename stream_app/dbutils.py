@@ -4,8 +4,8 @@ import cv2 as cv
 import base64
 import os
 
-def load_database(db_name="byakugan"):
-    conn = sqlite3.connect(db_name + ".db")
+def load_database(db_name="/app/db/byakugan.db"):
+    conn = sqlite3.connect(db_name)
     cursor = conn.cursor()
 
     conn.execute("PRAGMA foreign_keys = ON;")
@@ -62,7 +62,7 @@ def create_recording(conn, cursor, desc=None):
 
 def add_thumbnail_to_alert(conn, cursor, alert_id, frame):
     fname = f't-{alert_id}.jpg'
-    cv.imwrite("thumbnails/" + fname, frame)
+    cv.imwrite("/app/thumbnails/" + fname, frame)
 
     cursor.execute("UPDATE Alerts SET thumbnail = ? WHERE id = ?", (fname, alert_id))
     conn.commit()
@@ -101,8 +101,8 @@ def delete_alert(conn, cursor, alert_id):
                    WHERE Alerts.id = ?""", (alert_id, ))
     row = cursor.fetchone()
 
-    thumbnail_path = "thumbnails/" + row[0]
-    recording_path = "recordings/" + row[1]
+    thumbnail_path = "/app/thumbnails/" + row[0]
+    recording_path = "/app/recordings/" + row[1]
     rid = row[2]
 
     cursor.execute("DELETE FROM Alerts WHERE recording_id = ?", (rid, ))

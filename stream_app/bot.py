@@ -26,7 +26,7 @@ def send_message(chat_id, msg_txt, timeout=15):
 def send_message_with_img(chat_id, msg_txt, img_path, timeout=15):
 
     files = {
-        "photo" : open(f'./thumbnails/{img_path}', 'rb')
+        "photo" : open(f'/app/thumbnails/{img_path}', 'rb')
     }
 
     payload = {
@@ -41,7 +41,7 @@ def bot_main(bot_message_queue):
 
     """ This is the main loop for the bot and it works by long polling. Initially, we check if the bot has connected previously. We do this indirectly by checking if we saved our chat_id in the database. If we haven't, we enter the loop waiting for the database to contain it so it can dispatch messages. We also have the functionality that displays it to the telegram user so they can enter it themselves."""
 
-    sqlite_conn, sqlite_cursor = dbutils.load_database("byakugan")
+    sqlite_conn, sqlite_cursor = dbutils.load_database()
 
     chat_id_db = dbutils.get_setting_value(sqlite_conn, sqlite_cursor, "BYAKUGAN_CHAT_ID")
     offset = None
@@ -61,17 +61,17 @@ def bot_main(bot_message_queue):
         if chat_id_db is not None:
             try:
                 message = bot_message_queue.get(timeout = 1)
+                print("Processing bot message.", flush=True)
                 if message['type'] == "system":
-                    send_message(chat_id_db, message.text)
+                    send_message(chat_id_db, message['text'])
                 elif message['type'] == "alert":
                     send_message_with_img(chat_id_db, message['text'], message['image'])
             except queue.Empty:
                 continue
             except Exception as e:
-                print(f'Error in bot handler: {e}')
+                print(f'Error in bot handler: {e}', flush=True)
         else:
-            print("Fetching ID")
-            chat_id_db = dbutils.get_setting_value(sqlite_conn, sqlite_cursor, "BYAKUGAN_CHAT_ID")            
+            chat_id_db = dbutils.get_setting_value(sqlite_conn, sqlite_cursor, "BYAKUGAN_CHAT_ID")
                     
 
 if __name__ == "__main__":

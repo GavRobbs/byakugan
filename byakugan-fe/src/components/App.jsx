@@ -24,6 +24,8 @@ export default function App(){
         .then(response => response.text())
         .then(data => {
 
+            console.log(data);
+
             if(data == "COMPLETE"){
                 console.log("Setup complete");
                 setIsSetup([true, true]);

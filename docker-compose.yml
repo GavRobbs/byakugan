@@ -1,0 +1,40 @@
+services:
+  frontend:
+    build: ./byakugan-fe
+    container_name: frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+    environment:
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    networks:
+      - byakugan_network
+
+  backend:
+    build: ./stream_app
+    container_name: backend
+    ports:
+      - "5000:5000"
+    volumes:
+      - sqlite_data:/app/db
+      - thumbnails_data:/app/thumbnails
+      - recordings_data:/app/recordings
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro 
+    environment:
+      - CAMERA_FEED_SOURCE=DEFAULT
+      - BOT_TOKEN=${BOT_TOKEN}
+    networks:
+      - byakugan_network
+    restart: always
+
+networks:
+  byakugan_network:
+    driver: bridge
+
+volumes:
+  sqlite_data:
+  thumbnails_data:
+  recordings_data:

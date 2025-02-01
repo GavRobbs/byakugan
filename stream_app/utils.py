@@ -2,6 +2,17 @@ import cv2 as cv
 import numpy as np
 import queue
 from functools import reduce
+from decouple import config
+import socket
+
+def get_camera_feed_source():
+    #This allows me to read it from my environment variable in my dockerfile
+    source = config("CAMERA_FEED_SOURCE", default=None)
+
+    if source == None or source == "DEFAULT":
+        return 0
+    else:
+        return source
 
 #This uses an adaptive background, the alpha variable is the learning rate
 #and the higher it is, the faster objects "fade" into the background
@@ -160,3 +171,14 @@ def match_objects(detections, frame_count, old_to, message_queue_add_func, dista
             
     for new_det in unmatched_detections:
         old_to.append(new_det)
+
+def get_host_ip():
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.connect(("8.8.8.8", 80))
+        ip_address = s.getsockname()[0]
+    except Exception:
+        ip_address = "127.0.0.1" 
+    finally:
+        s.close()
+    return ip_address

@@ -8,8 +8,8 @@ export default function Alerts(){
     let [alerts, setAlerts] = useState([]);
     const {settingsData} = useContext(AppContext);
 
-    const alerts_url = `http://${settingsData.server_ip}/alerts`;
-    const thumbnail_url = `http://${settingsData.server_ip}/thumbnails/`;
+    const alerts_url = `http://${settingsData.server_ip}/api/alerts`;
+    const thumbnail_url = `http://${settingsData.server_ip}/api/thumbnails/`;
 
     const navigate = useNavigate();
 

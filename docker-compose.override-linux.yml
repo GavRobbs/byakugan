@@ -1,19 +1,22 @@
 services:
-  backend:
-    build: ./stream_app
-    container_name: backend
+  byakugan:
+    build: .
+    container_name: byakugan
     ports:
+      - "8080:5173"
       - "5000:5000"
-    environment:
-      - CAMERA_FEED_SOURCE=DEFAULT
-      - /etc/timezone:/etc/timezone:ro
-      - /etc/localtime:/etc/localtime:ro
-    devices:
-      - "/dev/video0:/dev/video0" 
     networks:
       - byakugan_network
     volumes:
       - sqlite_data:/app/db
       - thumbnails_data:/app/thumbnails
       - recordings_data:/app/recordings
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro 
     restart: always
+    environment:
+      - CAMERA_FEED_SOURCE=DEFAULT
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    devices:
+      - "/dev/video0:/dev/video0" 

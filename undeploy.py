@@ -17,6 +17,6 @@ if __name__ == "__main__":
         print("Byakugan shutdown")
     elif choice == 2:
         subprocess.run(["docker", "compose", "down", "--volumes"], check=True)
-        subprocess.run(["docker", "rmi", "byakugan-frontend", "byakugan-backend"], check=True)
+        subprocess.run(["docker", "rmi", "byakugan-byakugan"], check=True)
         print("The current instance of Byakugan was shut down.")
         print("All the associated volumes and images for Byakugan were removed.")

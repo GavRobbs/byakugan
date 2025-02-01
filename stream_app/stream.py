@@ -14,7 +14,7 @@ import bot
 import socket
 
 # Create our Flask app
-app = Flask(__name__)
+app = Flask(__name__, static_folder="../frontend", static_url_path="")
 CORS(app) 
 
 # Create a thread-safe queue for capture
@@ -192,7 +192,7 @@ def record_frames(desc=None):
                     ip_address = socket.gethostbyname(socket.gethostname())
                     bot_message_queue.put_nowait({
                         "type": "alert",
-                        "text" : f'*New event detected!* \n\n*Description:* {alert_details['description']} \n\n Review the footage [here]({"http://192.168.0.185" + ":8080/alerts/" + str(alert_id)}).',
+                        "text" : f'*New event detected!* \n\n*Description:* {alert_details['description']} \n\n Review the footage [here]({"http://192.168.0.185" + ":5000/#/alerts/" + str(alert_id)}).',
                         "image" : alert_details['thumbnail']                    
                     })
                     print("Adding message to queue")
@@ -223,11 +223,18 @@ def generate_stream():
             yield (b'--frame\r\n'
                     b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
             
-@app.route("/")
+@app.route('/')
+@app.route('/<path:path>')
+def serve_frontend(path="index.html"):
+    if path.startswith("api/"):  # Avoid serving API routes as frontend files
+        return "Not Found", 404
+    return send_from_directory(app.static_folder, path)
+            
+@app.route("/api/live")
 def video_feed():
     return Response(generate_stream(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
-@app.route("/alerts", methods=["GET"])
+@app.route("/api/alerts", methods=["GET"])
 def get_alerts():
     #Opening a new connection is faster and way simpler than having
     #to manage all the threads
@@ -240,7 +247,7 @@ def get_alerts():
     alerts = dbutils.get_alerts_data(sqlite_conn, sqlite_cursor, 5, page_no)
     return jsonify(alerts), 200
 
-@app.route("/alerts/<alert_id>", methods=["GET", "DELETE"])
+@app.route("/api/alerts/<alert_id>", methods=["GET", "DELETE"])
 def get_alert_detail(alert_id):
 
     sqlite_conn, sqlite_cursor = dbutils.load_database()
@@ -254,7 +261,7 @@ def get_alert_detail(alert_id):
         return jsonify({"message" : "Alert deleted"}), 200
     
    
-@app.route("/setup/check_connection", methods=["GET",])
+@app.route("/api/setup/check_connection", methods=["GET",])
 def test_connection():
     global server_linked
     sqlite_conn, sqlite_cursor = dbutils.load_database()
@@ -263,7 +270,7 @@ def test_connection():
 
     return Response("OK", status=200, mimetype="text/plain")
 
-@app.route("/setup/link_bot", methods=["POST",])
+@app.route("/api/setup/link_bot", methods=["POST",])
 def link_bot():
     global chat_id, bot_message_queue
     data = request.json
@@ -278,7 +285,7 @@ def link_bot():
 
     return Response("OK", status=200, mimetype="text/plain")
 
-@app.route("/setup", methods=["GET",])
+@app.route("/api/setup", methods=["GET",])
 def get_setup_status():
     global server_linked, chat_id
     sqlite_conn, sqlite_cursor = dbutils.load_database()
@@ -295,11 +302,11 @@ def get_setup_status():
         return Response("INCOMPLETE", status=200, mimetype="text/plain")
 
 
-@app.route("/thumbnails/<filename>")
+@app.route("/api/thumbnails/<filename>")
 def get_image(filename):
     return send_from_directory("/app/thumbnails", filename)
 
-@app.route("/recordings/<filename>")
+@app.route("/api/recordings/<filename>")
 def get_video(filename):
     as_attachment = request.args.get("download")
 
@@ -309,7 +316,7 @@ def get_video(filename):
     return send_from_directory("/app/recordings", filename, mimetype="video/mp4", as_attachment = True if as_attachment == "yes" else False)
 
 
-@app.route("/record", methods=["POST", "GET"])
+@app.route("/api/record", methods=["POST", "GET"])
 def recording_state():
     global record_count
 

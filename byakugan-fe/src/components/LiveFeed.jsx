@@ -7,7 +7,7 @@ export default function LiveFeed(){
 
     //The first variable is the actual value of recording or not, the second is if it should be sent to the server
     const [isRecording, setIsRecording] = useState([false, false]);
-    const record_url = `http://${settingsData.server_ip}/record`;
+    const record_url = `http://${settingsData.server_ip}/api/record`;
 
 
     //The timer is used to automatically activate/deactivate the button
@@ -98,7 +98,7 @@ export default function LiveFeed(){
     return ( 
         <main>
             <h1>Live Feed</h1>
-            <img src={`http://${settingsData.server_ip}/`} className="mjpg-feed"/>
+            <img src={`http://${settingsData.server_ip}/api/live`} className="mjpg-feed"/>
             {
                 renderButton()
             }

@@ -17,7 +17,7 @@ export default function App(){
 
     useEffect(() => {
 
-        fetch(`http://${settingsData.server_ip}/setup`, {
+        fetch(`http://${settingsData.server_ip}/api/setup`, {
             method: "GET",
             headers: { "Content-Type" : "application/json"}
         })
@@ -78,7 +78,7 @@ export default function App(){
 
         console.log("TC called");
 
-        fetch(`http://${ip_addr}/setup/check_connection`, {
+        fetch(`http://${ip_addr}/api/setup/check_connection`, {
             method: "GET",
         })
         .then(response => {
@@ -108,7 +108,7 @@ export default function App(){
 
         const body = {"chat_id" : chat_id};
 
-        fetch(`http://${ip_addr}/setup/link_bot`, {
+        fetch(`http://${ip_addr}/api/setup/link_bot`, {
             method: "POST",
             headers: { "Content-Type" : "application/json"},
             body: JSON.stringify(body)

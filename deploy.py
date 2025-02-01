@@ -51,18 +51,18 @@ if __name__ == "__main__":
     print("- The frontend web interface you can access in the browser")
     print("- The server that manages the requests from the frontend and handles the video processing")
     print("- The video source, which can be an attached USB camera or RTMP stream.")
-    input("\n\nPress RETURN to continue")
+    input("\nPress RETURN to continue")
 
-    print("\n\nThere are two primary ways of configuring Byakugan:")
+    print("\nThere are two primary ways of configuring Byakugan:")
     print("1) Everything on one device, meaning the server, frontend and video source all reside on the same system.")
     print("2) The server and the frontend on one device, and the video source coming from a RTMP stream from another device.")
-    input("\n\nPress RETURN to continue")
+    input("\nPress RETURN to continue\n")
 
     operating_system_name = os.name
     if operating_system_name == "nt":
         host_ip = get_windows_ip()
-        print(f'A Windows operating system has been detected. The host IP is {host_ip}.")
-        print("Docker on Windows does not allow direct access to USB webcam hardware, so if you want to use a locally attached camera, a RTMP streaming server will have to be created and a ffmpeg stream fed into the container. The quality of the feed from this is highly dependent on your network speed.')
+        print(f'A Windows operating system has been detected. The host IP is {host_ip}.')
+        print("Docker on Windows does not allow direct access to USB webcam hardware, so if you want to use a locally attached camera, a RTMP streaming server will have to be created and a ffmpeg stream fed into the container. The quality of the feed from this is highly dependent on your network speed.\n")
         os.environ["DOCKER_HOST_IP"] = host_ip
 
         windows_choice_answered = False
@@ -117,7 +117,7 @@ if __name__ == "__main__":
         host_ip = get_linux_ip()
         print(f"A Linux based machine has been detected. The host IP is {host_ip}. You can: ")
         print("1) Use an attached USB webcam at /dev/video0")
-        print("2) Use an external video feed eg. RTMP server or RTSP camera")
+        print("2) Use an external video feed eg. RTMP server or RTSP camera\n")
 
         linux_choice_answered = False
         rtmp_addr = ""

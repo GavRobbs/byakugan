@@ -46,6 +46,8 @@ fgmask = None
 server_linked = False
 chat_id = None
 
+DOCKER_HOST_IP = config("DOCKER_HOST_IP")
+
 
 #Scale our frames down to help with perforamance in image processing
 #Normalize the brightness using Contrast Limited Adaptive Histogram Equalization with LAB color space
@@ -192,7 +194,7 @@ def record_frames(desc=None):
                     ip_address = socket.gethostbyname(socket.gethostname())
                     bot_message_queue.put_nowait({
                         "type": "alert",
-                        "text" : f'*New event detected!* \n\n*Description:* {alert_details['description']} \n\n Review the footage [here]({"http://192.168.0.185" + ":5000/#/alerts/" + str(alert_id)}).',
+                        "text" : f'*New event detected!* \n\n*Description:* {alert_details['description']} \n\n Review the footage [here]({"http://" + DOCKER_HOST_IP + ":5000/#/alerts/" + str(alert_id)}).',
                         "image" : alert_details['thumbnail']                    
                     })
                     print("Adding message to queue")
@@ -261,15 +263,6 @@ def get_alert_detail(alert_id):
         return jsonify({"message" : "Alert deleted"}), 200
     
    
-@app.route("/api/setup/check_connection", methods=["GET",])
-def test_connection():
-    global server_linked
-    sqlite_conn, sqlite_cursor = dbutils.load_database()
-    dbutils.update_setting_value(sqlite_conn, sqlite_cursor, "BYAKUGAN_SERVER_LINKED", "True")
-    server_linked = True
-
-    return Response("OK", status=200, mimetype="text/plain")
-
 @app.route("/api/setup/link_bot", methods=["POST",])
 def link_bot():
     global chat_id, bot_message_queue
@@ -289,14 +282,10 @@ def link_bot():
 def get_setup_status():
     global server_linked, chat_id
     sqlite_conn, sqlite_cursor = dbutils.load_database()
-    sls_str = dbutils.get_setting_value(sqlite_conn, sqlite_cursor,"BYAKUGAN_SERVER_LINKED")
-
-    if sls_str == "True":
-        server_linked = True
 
     chat_id = dbutils.get_setting_value(sqlite_conn, sqlite_cursor, "BYAKUGAN_CHAT_ID")
 
-    if server_linked == True and chat_id is not None:
+    if chat_id is not None:
         return Response("COMPLETE", status=200, mimetype="text/plain")
     else:
         return Response("INCOMPLETE", status=200, mimetype="text/plain")

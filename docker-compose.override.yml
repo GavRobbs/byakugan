@@ -10,6 +10,7 @@ services:
       - /etc/localtime:/etc/localtime:ro
       - CAMERA_FEED_SOURCE=rtmp://rtmp-server/stream/test
       - BOT_TOKEN=${BOT_TOKEN}
+      - DOCKER_HOST_IP=${DOCKER_HOST_IP}
     networks:
       - byakugan_network
     volumes:

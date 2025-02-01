@@ -10,8 +10,8 @@ export default function AlertDetails(){
     const navigator = useNavigate();
     const {settingsData} = useContext(AppContext);
 
-    const details_url = `http://${settingsData.server_ip}/api/alerts/` + id;
-    const video_url = `http://${settingsData.server_ip}/api/recordings/`;
+    const details_url = `/api/alerts/` + id;
+    const video_url = `/api/recordings/`;
 
     const [alertData, setAlertData] = useState({
         id: "",

@@ -6,10 +6,9 @@ import { AppContext } from "./AppContext";
 export default function Alerts(){
 
     let [alerts, setAlerts] = useState([]);
-    const {settingsData} = useContext(AppContext);
 
-    const alerts_url = `http://${settingsData.server_ip}/api/alerts`;
-    const thumbnail_url = `http://${settingsData.server_ip}/api/thumbnails/`;
+    const alerts_url = `/api/alerts`;
+    const thumbnail_url = `/api/thumbnails/`;
 
     const navigate = useNavigate();
 

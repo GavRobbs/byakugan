@@ -2,49 +2,17 @@ import subprocess
 import os
 import re
 
-def get_windows_ip():
-    try:
-        result = subprocess.run(
-            ["ipconfig"], 
-            capture_output=True, 
-            text=True, 
-            shell=True
-        )
-        output = result.stdout
+import socket
 
-        ip_lines = [line.strip() for line in output.split("\n") if "IPv4" in line]
-        ip_addr = [line.split(":")[-1].strip() for line in ip_lines]
-        
-        if ip_lines:
-            for addr in ip_addr:
-                if "192.168" in addr[0:8]:
-                    return addr
-        else:
-            return "No IPv4 address found"
-    except Exception as e:
-        return f"Error: {e}"
-    
-import subprocess
-import re
-
-def get_linux_ip():
-    try:
-        result = subprocess.run(["ifconfig"], capture_output=True, text=True)
-        output = result.stdout
-
-        # Extract all IPv4 addresses
-        match = re.findall(r"inet (\d+\.\d+\.\d+\.\d+)", output)
-
-        # Filter only those starting with "192.168"
-        ip_addresses = [ip for ip in match if ip.startswith("192.168")]
-
-        return ip_addresses[0] if ip_addresses else "No 192.168.x.x IP found"
-
-    except Exception as e:
-        return f"Error: {e}"
+def get_local_ip():
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as my_socket:
+        my_socket.connect(("8.8.8.8", 80)) #Try using google's public DNS
+        return my_socket.getsockname()[0]
 
 
 if __name__ == "__main__":
+
+    print(get_local_ip())
 
     print("Welcome to Byakugan.")
     print("Byakugan is deployed via Docker, and consists of three components:")
@@ -59,8 +27,29 @@ if __name__ == "__main__":
     input("\nPress RETURN to continue\n")
 
     operating_system_name = os.name
+
+    try:
+        host_ip = get_local_ip()
+    except Exception as e:
+        print("The script was unable to determine your local IP address automatically.")
+        ip_entered = False
+
+        while not ip_entered:
+            raw_ip = input("Please enter the IP address (and port) that you expect Byakugan to be served from, in the format X.X.X.X:PORT (eg. 192.168.0.2:5000): ")
+            ip_matches = re.match(r'(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})(:\d{2,5})?', raw_ip)
+
+            if ip_matches:
+                ip_entered = True
+                host_ip = ".".join(ip_matches.groups()[:4])
+
+                #If we have a port
+                if ip_matches.groups(5):
+                    #Chop off the starting colon
+                    host_ip = host_ip + ip_matches.groups()[5][1:]
+            else:
+                print("Invalid IP address specified.")
+                
     if operating_system_name == "nt":
-        host_ip = get_windows_ip()
         print(f'A Windows operating system has been detected. The host IP is {host_ip}.')
         print("Docker on Windows does not allow direct access to USB webcam hardware, so if you want to use a locally attached camera, a RTMP streaming server will have to be created and a ffmpeg stream fed into the container. The quality of the feed from this is highly dependent on your network speed.\n")
         os.environ["DOCKER_HOST_IP"] = host_ip
@@ -114,7 +103,6 @@ if __name__ == "__main__":
                 pass
         
     else:
-        host_ip = get_linux_ip()
         print(f"A Linux based machine has been detected. The host IP is {host_ip}. You can: ")
         print("1) Use an attached USB webcam at /dev/video0")
         print("2) Use an external video feed eg. RTMP server or RTSP camera\n")

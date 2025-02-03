@@ -9,7 +9,6 @@ export default function LiveFeed(){
     const [isRecording, setIsRecording] = useState([false, false]);
     const record_url = `/api/record`;
 
-
     //The timer is used to automatically activate/deactivate the button
 
     const recording_timer = useRef(null);

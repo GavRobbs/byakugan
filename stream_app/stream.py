@@ -10,7 +10,7 @@ import dbutils
 import sys
 import ffmpeg
 import os
-import bot
+from bot import TelegramBotThread
 import socket
 
 # Create our Flask app
@@ -26,7 +26,6 @@ recording_queue = queue.Queue(maxsize=90)
 #The first message queue takes the messages from object detection and uses them to activate the camera
 #The second one is for the Telegram API bot
 message_queue = queue.Queue(maxsize=1)
-bot_message_queue = queue.Queue(maxsize=10)
 
 recording_event = threading.Event()
 record_count = 0
@@ -44,7 +43,6 @@ bgFrame = None
 fgmask = None
 
 server_linked = False
-chat_id = None
 
 DOCKER_HOST_IP = config("DOCKER_HOST_IP")
 
@@ -163,7 +161,7 @@ def handle_messages():
         time.sleep(2)
 
 def record_frames(desc=None):
-    global recording_queue, recording_event, record_count, bot_message_queue
+    global recording_queue, recording_event, record_count
     sqlite_conn = None
     sqlite_cursor = None
 
@@ -191,13 +189,11 @@ def record_frames(desc=None):
                 alert_details = dbutils.get_alert_details(sqlite_conn, sqlite_cursor, alert_id)
 
                 try:
-                    ip_address = socket.gethostbyname(socket.gethostname())
-                    bot_message_queue.put_nowait({
-                        "type": "alert",
-                        "text" : f'*New event detected!* \n\n*Description:* {alert_details['description']} \n\n Review the footage [here]({"http://" + DOCKER_HOST_IP + ":5000/#/alerts/" + str(alert_id)}).',
+                    bot_thread.add_message_to_queue({
+                        "name": "alert",
+                        "text" : f'*New event detected!* \n\n*Description:* {alert_details['description']} \n\nReview the footage [here]({"http://" + DOCKER_HOST_IP + "/#/alerts/" + str(alert_id)}).',
                         "image" : alert_details['thumbnail']                    
                     })
-                    print("Adding message to queue")
                 except queue.Full:
                     print("Bot message queue is full")
 
@@ -265,14 +261,17 @@ def get_alert_detail(alert_id):
    
 @app.route("/api/setup/link_bot", methods=["POST",])
 def link_bot():
-    global chat_id, bot_message_queue
     data = request.json
     sqlite_conn, sqlite_cursor = dbutils.load_database()
-    dbutils.update_setting_value(sqlite_conn, sqlite_cursor, "BYAKUGAN_CHAT_ID", data["chat_id"])
-    chat_id = data["chat_id"]
+    dbutils.update_setting_value(sqlite_conn, sqlite_cursor, "BOT_CHAT_ID", data["chat_id"])
 
-    bot_message_queue.put_nowait({
-        "type": "system",
+    bot_thread.add_message_to_queue({
+        "name": "bot_chat_id",
+        "value": data["chat_id"]
+    })
+
+    bot_thread.add_message_to_queue({
+        "name": "system",
         "text": "Byakugan linked to Hyuga bot"
     })
 
@@ -280,10 +279,10 @@ def link_bot():
 
 @app.route("/api/setup", methods=["GET",])
 def get_setup_status():
-    global server_linked, chat_id
+    global server_linked
     sqlite_conn, sqlite_cursor = dbutils.load_database()
 
-    chat_id = dbutils.get_setting_value(sqlite_conn, sqlite_cursor, "BYAKUGAN_CHAT_ID")
+    chat_id = dbutils.get_setting_value(sqlite_conn, sqlite_cursor, "BOT_CHAT_ID")
 
     if chat_id is not None:
         return Response("COMPLETE", status=200, mimetype="text/plain")
@@ -343,7 +342,7 @@ if __name__ == "__main__":
     capture_thread = threading.Thread(target=capture_and_process_frames, daemon=True)
     pass_thread = threading.Thread(target=pass_frame, daemon=True)
     messaging_thread = threading.Thread(target=handle_messages, daemon=True)
-    bot_thread = threading.Thread(target=bot.bot_main, args=[bot_message_queue,], daemon=True)
+    bot_thread = TelegramBotThread()
 
     capture_thread.start()
     pass_thread.start()

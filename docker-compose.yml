@@ -9,7 +9,7 @@ services:
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
       - CAMERA_FEED_SOURCE=DEFAULT
-      - BOT_TOKEN=${BOT_TOKEN}
+      - BYAKUGAN_BOT_TOKEN=${BYAKUGAN_BOT_TOKEN}
       - DOCKER_HOST_IP=${DOCKER_HOST_IP}
     networks:
       - byakugan_network

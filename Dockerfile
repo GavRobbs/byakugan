@@ -15,7 +15,8 @@ RUN npm run build
 FROM python:3.12
 WORKDIR /usr/src/app
 
-RUN apt-get update && apt-get install -y ffmpeg
+#Install ffmpeg and sqlite3
+RUN apt-get update && apt-get install -y ffmpeg && apt-get install -y sqlite3
 
 COPY ./stream_app/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt

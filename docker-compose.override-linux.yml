@@ -19,5 +19,6 @@ services:
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
       - DOCKER_HOST_IP=${DOCKER_HOST_IP}
+      - BYAKUGAN_BOT_TOKEN=${BYAKUGAN_BOT_TOKEN}
     devices:
       - "/dev/video0:/dev/video0" 

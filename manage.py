@@ -420,7 +420,7 @@ class LinuxGUI(GUI):
         if self.var_localCamOption.get() == 1:
             self.docker_process_handle = subprocess.Popen(["docker", "compose", "-f", "docker-compose.yml", "-f", "docker-compose.override-linux.yml", "up", "-d"], env={**os.environ}, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=1, universal_newlines=True)
         else:
-            self.docker_process_handle = subprocess.Popen(["docker", "compose", "-f", "docker-compose.yml", "up", "-d"], env={**os.environ,"CAMERA_FEED_SOURCE" : self.var_camAddress}, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=1, universal_newlines=True)
+            self.docker_process_handle = subprocess.Popen(["docker", "compose", "-f", "docker-compose.yml", "up", "-d"], env={**os.environ,"CAMERA_FEED_SOURCE" : self.var_camAddress.value()}, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=1, universal_newlines=True)
 
         threading.Thread(target=self.__docker_log, daemon=True).start()
 

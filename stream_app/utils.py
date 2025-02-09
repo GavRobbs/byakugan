@@ -67,9 +67,10 @@ class ObjectDetector:
         #It should return the current foreground mask
         raise NotImplementedError(message="Please implement the iterate function")
     
-class MovingMedianObjectDetector:
+class MovingMedianObjectDetector(ObjectDetector):
     #This implements a moving median object detector
     def __init__(self, bufsize=10, shadow_threshold=30):
+        super().__init__()
         self.background_buffer = deque(maxlen=bufsize)
         self.shadow_threshold = shadow_threshold
 

@@ -23,46 +23,26 @@ frame_queue = queue.Queue(maxsize=35)
 # Create a thread-safe queue for recording
 recording_queue = queue.Queue(maxsize=90)
 
-#The first message queue takes the messages from object detection and uses them to activate the camera
-#The second one is for the Telegram API bot
+#The message queue takes the messages from object detection and uses them to activate the camera
 message_queue = queue.Queue(maxsize=1)
 
 recording_event = threading.Event()
 record_count = 0
 
 last_msg_time = 0
-suppress_msg_time = 100.0   
+suppress_msg_time = 200.0   
 
 # Global variable for the latest processed frame
 captured_frame = None
 
 tracked_objects = []
 frame_count = 0      
-first_frame_captured = False
-bgFrame = None
-fgmask = None
-
 server_linked = False
 
 DOCKER_HOST_IP = config("DOCKER_HOST_IP")
 
-
-#Scale our frames down to help with perforamance in image processing
-#Normalize the brightness using Contrast Limited Adaptive Histogram Equalization with LAB color space
-def rescaleAndNormalizeFrame(frame, w=800, h=600):
-    frame_res =  cv.resize(frame, (w, h), interpolation=cv.INTER_AREA)
-    frame_lab = cv.cvtColor(frame_res, cv.COLOR_BGR2LAB)
-    l, a, b = cv.split(frame_lab)
-
-    clahe = cv.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-    l_chahe = clahe.apply(l)
-
-    lab_img_clahe = cv.merge((l_chahe, a, b))
-
-    return frame_res, cv.cvtColor(lab_img_clahe, cv.COLOR_LAB2BGR)
-
 def capture_and_process_frames():
-    global frame_queue, captured_frame, tracked_objects, frame_count, first_frame_captured, bgFrame, fgmask, message_queue, recording_queue
+    global frame_queue, captured_frame, tracked_objects, frame_count, recording_queue
     source = get_camera_feed_source()
     print("The video source is " + str(source))
     camera = cv.VideoCapture(source)
@@ -71,36 +51,33 @@ def capture_and_process_frames():
     if not camera.isOpened():
         print("Error: Camera not opened!")
         return
+    
+    object_detector = MovingMedianObjectDetector()
 
     while True:
         success, frame = camera.read()
-        if not success:
+        if not success or frame is None:
             print("Error: Failed to capture frame!")
             break
 
-        frame, frame_normalized = rescaleAndNormalizeFrame(frame)
-        frame_normalized = cv.GaussianBlur(frame_normalized, (55, 55), 0) 
-
-        if not first_frame_captured:
-            first_frame_captured = True
-            bgFrame = frame_normalized
+        #We always resize the frame to cut down on what it takes to process it
+        frame =  cv.resize(frame, (800, 600), interpolation=cv.INTER_AREA)
 
         if recording_queue.full():
             recording_queue.get()
         
         recording_queue.put(frame.copy())
 
-        bgFrame = get_adaptive_background(frame_normalized, bgFrame)
-        fgmask = handle_lighting_changes(frame_normalized, bgFrame)
-        fgmask = pp_mask(fgmask)
-        fgmask = fill_holes(fgmask)
+        fgmask = object_detector.iterate(frame)
 
         contours, hierarchy = cv.findContours(image=fgmask, mode=cv.RETR_EXTERNAL, method=cv.CHAIN_APPROX_SIMPLE)
         new_detections = []
         for contour in contours:
             area = cv.contourArea(contour)
-            if area > 11000:
+            if area > 3500 and area < 30000:
                 new_detections.append(TrackedObject(cv.boundingRect(contour), contour, frame_count))
+
+        #Check the contours detected and compare them to the old ones to look for motion
 
         match_objects(new_detections, frame_count, tracked_objects, add_to_mq)
 
@@ -117,7 +94,7 @@ def capture_and_process_frames():
         if frame_queue.full():
             frame_queue.get()
 
-        #put it in the queue and scale it
+        #put it in the queue
         frame_queue.put(frame)
 
         #Just for testing
@@ -126,8 +103,9 @@ def capture_and_process_frames():
     camera.release()
 
 def pass_frame():
-    #This thread pulls the frame from the queue and processes it
-    global frame_queue, message_queue, captured_frame
+    #This thread pulls the frame from the queue and sets it up for
+    #display via the MJPEG stream created by the generate_stream function
+    global frame_queue, captured_frame
     while True:
         try:
             captured_frame = frame_queue.get(timeout=1)
@@ -135,7 +113,7 @@ def pass_frame():
             continue
 
 def add_to_mq(msg):
-    global message_queue, last_msg_time
+    global message_queue, last_msg_time, suppress_msg_time
     new_time = time.time()
     if new_time - last_msg_time > suppress_msg_time:
         print("Ready to message again")
@@ -176,7 +154,7 @@ def record_frames(desc=None):
 
     firstFrame = True
 
-    while recording_event.is_set() and record_count < 300:
+    while recording_event.is_set() and record_count < 600:
 
         try:
             current_recorded_frame = recording_queue.get(timeout=1)
@@ -191,7 +169,7 @@ def record_frames(desc=None):
                 try:
                     bot_thread.add_message_to_queue({
                         "name": "alert",
-                        "text" : f'*New event detected!* \n\n*Description:* {alert_details['description']} \n\nReview the footage [here]({"http://" + DOCKER_HOST_IP + "/#/alerts/" + str(alert_id)}).',
+                        "text" : f'*New event detected!* \n\n*Description:* {alert_details['description']} \n\nReview the footage [here]({"http://" + DOCKER_HOST_IP + ":5000/#/alerts/" + str(alert_id)}).',
                         "image" : alert_details['thumbnail']                    
                     })
                 except queue.Full:

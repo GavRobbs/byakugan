@@ -1,6 +1,7 @@
 import cv2 as cv
 import numpy as np
 import queue
+from collections import deque
 from functools import reduce
 from decouple import config
 import socket
@@ -105,6 +106,64 @@ class TrackedObject:
             c_x, c_y = 0, 0
 
         return (c_x, c_y)"""
+    
+class ObjectDetector:
+    #This class gives me a way to try out some different object detection algos without clogging
+    #up the actual thread
+    def __init__(self):
+        pass
+
+    def iterate(self):
+        #This function is called on every iteration of the loop
+        #It should return the current foreground mask
+        raise NotImplementedError(message="Please implement the iterate function")
+    
+class MovingMedianObjectDetector:
+    #This implements a moving median object detector
+    def __init__(self, bufsize=10, shadow_threshold=30):
+        self.background_buffer = deque(maxlen=bufsize)
+        self.shadow_threshold = shadow_threshold
+
+    def generate_median_background(self):
+        #This is some numpy wizardry to get the median value of every corresponding pixel each of the stored frames in the array buffer
+        stack = np.stack(self.background_buffer, axis=0)
+        return np.median(stack, axis=0).astype(np.uint8)
+    
+    def generate_fgmask(self, current_frame, median_background):
+
+        #The first part of this step makes an attempt to filter out shadows
+        #its conventionally held that in the HSV color space, colors keep H and S, but decrease V (value)
+        #So we extract the value channel and compare the absolute difference and disard it
+        #if it is less than our shadow threshold
+        frame_hsv = cv.cvtColor(current_frame, cv.COLOR_BGR2HSV)
+        median_background_hsv = cv.cvtColor(median_background, cv.COLOR_BGR2HSV)
+
+        fg_mask = cv.absdiff(frame_hsv[:, :, 2], median_background_hsv[:, :, 2])
+        fg_mask[fg_mask < self.shadow_threshold] = 0
+
+        #We then apply a binary threshold to filter out pixels below a certain intensity
+        _, fg_mask = cv.threshold(fg_mask, 40, 255, cv.THRESH_BINARY)
+        return fg_mask
+    
+    def morphology_patch(self, fg_mask):
+        #We do some opening and closing here to help reduce noise and hopefully fill in spaces
+        kernel = np.ones((3,3), np.uint8)
+        mask = cv.morphologyEx(fg_mask, cv.MORPH_OPEN, kernel)
+        mask = cv.morphologyEx(mask, cv.MORPH_CLOSE, kernel)
+        mask = cv.dilate(mask, kernel, 7)
+        mask = cv.medianBlur(mask, 3)
+        return mask 
+
+    def iterate(self, current_frame):
+
+        self.background_buffer.append(current_frame)        
+        median_background = self.generate_median_background()
+        fg_mask = self.generate_fgmask(current_frame, median_background)
+        fg_mask = self.morphology_patch(fg_mask)
+
+        return fg_mask
+
+
 
 def match_objects(detections, frame_count, old_to, message_queue_add_func, distance_threshold = 200, max_disappearance = 40, notify_time = 30):
 
@@ -164,7 +223,10 @@ def match_objects(detections, frame_count, old_to, message_queue_add_func, dista
             message_queue_add_func(complete_msg)
     else:
         #If we've picked up more than 3 objects, we summarize everything
-        avg_pos = reduce(lambda t1, t2: (t1.centroid[0] + t2.centroid[0], t1.centroid[1] + t2.centroid[1]), to_notify) / len(to_notify)
+        avg_pos = (
+                    sum(t.centroid[0] for t in to_notify) / len(to_notify),
+                    sum(t.centroid[1] for t in to_notify) / len(to_notify)
+                    )
         msg = f'{len(to_notify)} objects detected, with average position at {"bottom" if avg_pos[1] >= 300 else "top"} - {"left" if avg_pos[0] > 400 else "right"}'
         message_queue_add_func(msg)
 

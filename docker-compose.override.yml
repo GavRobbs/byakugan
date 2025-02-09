@@ -20,6 +20,9 @@ services:
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro       
     restart: always
+    depends_on:
+      rtmp-server:
+        condition: service_healthy
       
   rtmp-server:
     image: alfg/nginx-rtmp
@@ -36,5 +39,3 @@ services:
       - /etc/localtime:/etc/localtime:ro
     networks:
       - byakugan_network
-    depends_on:
-      - byakugan

@@ -136,12 +136,6 @@ class WindowsGUI(GUI):
             return
         
         self.enableLogging.set()
-        
-        if self.var_localCamOption.get() == 1:
-            self.displayMessage("Starting the FFMPEG dummy camera")
-            if not self.__startFFMPEG():
-                self.displayMessage("There was an error starting FFMPEG so the application terminated")
-                return
 
         self.__startDocker()
             
@@ -202,7 +196,7 @@ class WindowsGUI(GUI):
             camera_name = None
             return False
 
-        self.ffmpeg_process_handle = subprocess.Popen(["ffmpeg", "-f", "dshow", "-i", f'video={camera_name}', "-vcodec", "libx264", "-preset", "veryfast", "-b:v", "1M", "-nostats", "-loglevel", "error", "-maxrate", "3000k", "-bufsize", "512M", "-an", "-f", "flv", "rtmp://localhost/stream/test",  "-reconnect", "1", "-reconnect_streamed", "1", "-reconnect_delay_max", "5", "-reconnect_at_eof", "1"],stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+        self.ffmpeg_process_handle = subprocess.Popen(["ffmpeg", "-f", "dshow", "-i", f'video={camera_name}', "-vcodec", "libx264", "-preset", "veryfast", "-video_size", "800x600", "-b:v", "1M", "-nostats", "-loglevel", "error", "-maxrate", "3000k", "-rtbufsize", "1G", "-bufsize", "3000k", "-an", "-f", "flv", "rtmp://127.0.0.1:1935/stream/test"],stdout=subprocess.PIPE,stderr=subprocess.PIPE)
 
         threading.Thread(target=self.__ffpmeg_log, daemon=True).start()
         return True
@@ -255,6 +249,13 @@ class WindowsGUI(GUI):
                         self.root.after(0, self.displayMessage, line.strip()) 
 
                         if "Container byakugan" in line and "Starting" in line:
+                            if self.var_localCamOption.get() == 1:
+                                self.displayMessage("Starting the FFMPEG dummy camera")
+                                if not self.__startFFMPEG():
+                                    self.displayMessage("There was an error starting FFMPEG so the application terminated")
+                                    return
+                            else:
+                                self.displayMessage("Fetching input from specified RTMP server")
                             webbrowser.open("http://"+self.ip_address+":5000")
                     
             except Exception as e:
@@ -269,13 +270,18 @@ class WindowsGUI(GUI):
         #although people do this in JS all the time
         #This stops the app from freezing up when you close docker
         def edfunc():
-            subprocess.run(["docker", "compose", "down"], check=True)
-            self.docker_process_handle = None
-            self.displayMessage("Docker has been shut down")
-            self.enableLogging.clear()
-            self.root.after(0, self.enableButtons)
-
+            try:
+                subprocess.run(["docker", "compose", "down"], check=True)
+                self.docker_process_handle = None
+                self.displayMessage("Docker has been shut down")
+                self.enableLogging.clear()
+                self.root.after(0, self.enableButtons)
+            except Exception as e:
+                self.displayMessage(str(e))
+        
         threading.Thread(target=edfunc, daemon=True).start()
+
+
 
 class LinuxGUI(GUI):
     def __init__(self):

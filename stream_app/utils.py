@@ -15,57 +15,6 @@ def get_camera_feed_source():
     else:
         return source
 
-#This uses an adaptive background, the alpha variable is the learning rate
-#and the higher it is, the faster objects "fade" into the background
-def get_adaptive_background(frame, bg_model, alpha=0.01):
-    frame_float = frame.astype(float)
-    bg_float = bg_model.astype(float)
-
-    new_bg = cv.addWeighted(bg_float, 1-alpha, frame_float, alpha, 0)
-    return new_bg.astype(np.uint8)
-
-#This helps us to handle variable lighting conditions from the camera
-#We also try to guess at creating a shadow mask
-def handle_lighting_changes(frame, bg_model):
-    frame_hsv = cv.cvtColor(frame, cv.COLOR_BGR2HSV)
-    bg_hsv = cv.cvtColor(bg_model, cv.COLOR_BGR2HSV)
-
-    frame_h, frame_s, frame_v = cv.split(frame_hsv)
-    bg_h, bg_s, bg_v = cv.split(bg_hsv)
-
-    diff_h = cv.absdiff(frame_h, bg_h)
-    diff_s = cv.absdiff(frame_s, bg_s)
-    diff_v = cv.absdiff(frame_v, bg_v)
-
-    #Shadows lower brightness but don't change hue
-    shadow_mask = (frame_s > 50) & (frame_v > bg_v - 30)
-
-    combined_diff = (0.5 * diff_h + 0.3 * diff_s + 0.2 * diff_v).astype(np.uint8)
-    _, mask = cv.threshold(combined_diff, 30, 255, cv.THRESH_BINARY)
-    mask = cv.bitwise_and(mask, mask, mask=shadow_mask.astype(np.uint8))
-    return mask
-
-#We do some postprocessing for open and closing here
-def pp_mask(mask):
-    kernel_close = np.ones((5, 5), np.uint8)
-    kernel_open = np.ones((3, 3), np.uint8)
-    
-    mask = cv.morphologyEx(mask, cv.MORPH_CLOSE, kernel_close)
-    mask = cv.morphologyEx(mask, cv.MORPH_OPEN, kernel_open)
-
-    return mask
-
-#We fill internal holes in objects
-def fill_holes(mask):
-    mask_inv = cv.bitwise_not(mask)
-    filled = mask_inv.copy()
-    h, w = mask.shape
-    border_mask = np.zeros((h+2, w+2), np.uint8)
-    cv.floodFill(filled, border_mask, (0, 0), 255)
-    filled_inv = cv.bitwise_not(filled)
-    final = cv.bitwise_or(mask, filled_inv)
-    return final
-
 #created this object class to make it easy to track objects
 class TrackedObject:
     _id_counter = 0

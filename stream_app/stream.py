@@ -29,6 +29,8 @@ message_queue = queue.Queue(maxsize=1)
 recording_event = threading.Event()
 record_count = 0
 
+isRecording = True
+
 last_msg_time = 0
 suppress_msg_time = 200.0   
 
@@ -40,6 +42,11 @@ frame_count = 0
 server_linked = False
 
 DOCKER_HOST_IP = config("DOCKER_HOST_IP")
+
+#Threads
+capture_thread = None
+pass_thread = None
+messaging_thread = None
 
 def capture_and_process_frames():
     global frame_queue, captured_frame, tracked_objects, frame_count, recording_queue
@@ -54,7 +61,7 @@ def capture_and_process_frames():
     
     object_detector = MovingMedianObjectDetector()
 
-    while True:
+    while isRecording:
         success, frame = camera.read()
         if not success or frame is None:
             print("Error: Failed to capture frame!")
@@ -106,7 +113,7 @@ def pass_frame():
     #This thread pulls the frame from the queue and sets it up for
     #display via the MJPEG stream created by the generate_stream function
     global frame_queue, captured_frame
-    while True:
+    while isRecording:
         try:
             captured_frame = frame_queue.get(timeout=1)
         except queue.Empty:
@@ -123,7 +130,7 @@ def add_to_mq(msg):
 def handle_messages():
     global message_queue, record_count, recording_event  
 
-    while True:
+    while isRecording:
         try:
             msg = message_queue.get(timeout = 1)
             print(msg)
@@ -315,18 +322,62 @@ def recording_state():
         return jsonify({"error": "Please include a new_state field with a value of \"on\" or \"off\""}), 400
     
 
-if __name__ == "__main__":
+@app.route("/api/record_status", methods=["POST", "GET"])
+def recording_enabled():
+    global isRecording
 
+    #We can use get to check if we are recording or not
+    if request.method == "GET":
+        return jsonify({"recording" : "enabled" if isRecording else "disabled"}), 200
+    elif request.method != "POST":
+        #Give an error if the method is not get or post
+        return "", 405
+    
+    #Fall through if the method is post
+    data = request.json
+    if "new_state" not in data:
+        return jsonify({"error": "Please include a new_state field with a value of \"enabled\" or \"disabled\""}), 400
+    
+    if data["new_state"].lower() == "enabled":
+        if not isRecording:
+            #TODO: Start recording logic here
+            start_capture_and_processing()       
+            return jsonify({"status" : "Recording is now enabled"}), 201
+        else:
+            return jsonify({"status" : "Recording is already enabled"}), 400
+            
+    elif data["new_state"].lower() == "disabled":
+        stop_capture_and_processing()
+        return jsonify({"status" : "Recording disabled successfully"}), 201
+    else:
+        return jsonify({"error": "Please include a new_state field with a value of \"enabled\" or \"disabled\""}), 400
+    
+def start_capture_and_processing():
+    global capture_thread, pass_thread, messaging_thread, isRecording
     capture_thread = threading.Thread(target=capture_and_process_frames, daemon=True)
     pass_thread = threading.Thread(target=pass_frame, daemon=True)
     messaging_thread = threading.Thread(target=handle_messages, daemon=True)
-    bot_thread = TelegramBotThread()
+
+    isRecording = True
 
     capture_thread.start()
     pass_thread.start()
-    bot_thread.start()
     messaging_thread.start()
 
+def stop_capture_and_processing():
+    global capture_thread, pass_thread, messaging_thread, isRecording, recording_event
+    recording_event.clear()
+
+    isRecording = False
+    
+
+if __name__ == "__main__":
+
+    start_capture_and_processing()
+
+    bot_thread = TelegramBotThread()
+    bot_thread.start() 
+    
     app.run('0.0.0.0', port=5000)
 
     recording_event.clear()

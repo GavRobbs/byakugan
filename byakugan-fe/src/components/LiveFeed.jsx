@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef, useContext } from "react"
 import { AppContext } from "./AppContext";
+import NoFeedImage from "../assets/nofeed.jpg";
 
 export default function LiveFeed(){
 
@@ -7,11 +8,35 @@ export default function LiveFeed(){
 
     //The first variable is the actual value of recording or not, the second is if it should be sent to the server
     const [isRecording, setIsRecording] = useState([false, false]);
+    const [isRecordingAllowed, setIsRecordingAllowed] = useState(true);
     const record_url = `/api/record`;
 
     //The timer is used to automatically activate/deactivate the button
 
     const recording_timer = useRef(null);
+
+    //We make an API call here to see if the user has enabled or disabled recording
+    //so we can know to put the placeholder there if not
+    useEffect(() => {
+
+        fetch(`/api/record_status`, {
+            method: "GET",
+        })
+        .then(response => response.json())
+        .then(response => {
+            if(response["recording"] == "enabled")
+            {
+                setIsRecordingAllowed(true);
+            } else{
+                setIsRecordingAllowed(false);
+            }
+        })
+        .catch(err => {
+            console.log("Error getting recording status");
+            setIsRecordingAllowed(false);
+        })
+
+    }, []);    
 
     function startRecordingTimer(){
         if(!recording_timer.current){
@@ -74,6 +99,10 @@ export default function LiveFeed(){
 
     function renderButton(){
 
+        if(!isRecordingAllowed){
+            return;
+        }
+
         if(!isRecording[0]){
 
             return <button className="btn btn-primary" 
@@ -94,14 +123,23 @@ export default function LiveFeed(){
 
     }
 
+    function renderFeedOrPlaceHolder(){
+        if(isRecordingAllowed){
+            return <img src={`/api/live`} className="mjpg-feed"/>;
+        } else{
+            return <img src={NoFeedImage} className="mjpg-feed" />;
+        }
+    }
+
     return ( 
         <main>
             <h1>Live Feed</h1>
-            <img src={`/api/live`} className="mjpg-feed"/>
+            {
+                renderFeedOrPlaceHolder()
+            }
             {
                 renderButton()
-            }
-            
+            }       
         </main>
         )
 }

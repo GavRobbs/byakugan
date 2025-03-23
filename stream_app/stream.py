@@ -48,8 +48,11 @@ capture_thread = None
 pass_thread = None
 messaging_thread = None
 
+#0 for my moving median background subtractor, 1 to use openCV's builtin MOG2
+processing_method = 0
+
 def capture_and_process_frames():
-    global frame_queue, captured_frame, tracked_objects, frame_count, recording_queue
+    global frame_queue, captured_frame, tracked_objects, frame_count, recording_queue, processing_method
     source = get_camera_feed_source()
     print("The video source is " + str(source))
     camera = cv.VideoCapture(source)
@@ -59,7 +62,7 @@ def capture_and_process_frames():
         print("Error: Camera not opened!")
         return
     
-    object_detector = MovingMedianObjectDetector()
+    object_detector = MovingMedianObjectDetector() if processing_method == 0 else OpenCVMOG2ObjectDetector()
 
     while isRecording:
         success, frame = camera.read()
@@ -352,6 +355,25 @@ def recording_enabled():
     else:
         return jsonify({"error": "Please include a new_state field with a value of \"enabled\" or \"disabled\""}), 400
     
+@app.route("/api/processor", methods=["POST", "GET"])
+def image_processor():
+    global processing_method
+
+    if request.method == "GET":
+        return jsonify({"method" : processing_method}), 200
+    elif request.method != "POST":
+        return "", 405
+    
+    data = request.json
+    if "method" not in data:
+        return jsonify({"error": "Please send a method field with a value of 0 or 1"}), 400
+    else:
+        processing_method = int(data["method"])
+        #Restart the capture and processing
+        stop_capture_and_processing()
+        start_capture_and_processing()
+        return jsonify({"status" : "Frame processor changed successfully"}), 201
+    
 def start_capture_and_processing():
     global capture_thread, pass_thread, messaging_thread, isRecording
     capture_thread = threading.Thread(target=capture_and_process_frames, daemon=True)
@@ -365,10 +387,32 @@ def start_capture_and_processing():
     messaging_thread.start()
 
 def stop_capture_and_processing():
-    global capture_thread, pass_thread, messaging_thread, isRecording, recording_event
+    global capture_thread, pass_thread, messaging_thread, isRecording, recording_event, frame_queue, recording_queue, message_queue
     recording_event.clear()
 
     isRecording = False
+
+    #Sleep to give our threads time to wrap up
+    time.sleep(2)
+
+    #We empty the queues here to prevent erroneous data from sticking around if we restart    
+    while True:
+        try:
+            frame_queue.get_nowait()
+        except queue.Empty:
+            break
+
+    while True:
+        try:
+            recording_queue.get_nowait()
+        except queue.Empty:
+            break
+
+    while True:
+        try:
+            message_queue.get_nowait()
+        except queue.Empty:
+            break
     
 
 if __name__ == "__main__":

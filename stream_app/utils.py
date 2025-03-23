@@ -112,6 +112,22 @@ class MovingMedianObjectDetector(ObjectDetector):
         fg_mask = self.morphology_patch(fg_mask)
 
         return fg_mask
+    
+class OpenCVMOG2ObjectDetector(ObjectDetector):
+    #This uses openCV's built in MOG2 detector
+    def __init__(self):
+        super().__init__()
+        self.mogger = cv.createBackgroundSubtractorMOG2()
+
+    def cleanup_mask(self, frame_to_clean):
+        kernel = cv.getStructuringElement(cv.MORPH_ELLIPSE, (3, 3))
+        return cv.morphologyEx(frame_to_clean, cv.MORPH_OPEN, kernel)
+
+    def iterate(self, current_frame):
+        #This is so simple, two lines of code, using openCV's built in Mixture of Gaussians detector
+        fg_mask = self.mogger.apply(current_frame)
+        fg_mask = self.cleanup_mask(fg_mask)
+        return fg_mask
 
 
 

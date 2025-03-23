@@ -190,3 +190,30 @@ main > h1{
   flex-wrap: wrap;
   row-gap: 1em;
 }
+
+.settings-section{
+  display: flex;
+  flex-direction: column;
+  flex-wrap: wrap;
+  margin-top: auto;
+  row-gap: 1em;
+  width: 100%;
+}
+
+.settings-section h2{
+  align-self: start;
+}
+
+.settings-section .settings-radio-options{
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  column-gap: 1em;
+}
+
+.settings-section .settings-recording-button-holder {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+}

@@ -5,13 +5,12 @@ import queue
 import threading
 from utils import * 
 import time
-import sqlite3
 import dbutils
 import sys
 import ffmpeg
 import os
 from bot import TelegramBotThread
-import socket
+import platform
 
 # Create our Flask app
 app = Flask(__name__, static_folder="../frontend", static_url_path="")
@@ -373,6 +372,16 @@ def image_processor():
         stop_capture_and_processing()
         start_capture_and_processing()
         return jsonify({"status" : "Frame processor changed successfully"}), 201
+    
+@app.route("/api/platform", methods=["GET",])
+def platform_data():
+    return jsonify({
+        "system": platform.system(),
+        "release": platform.release(),
+        "version": platform.version(),
+        "machine": platform.machine(),
+        "platform_str": platform.platform()
+    }), 200
     
 def start_capture_and_processing():
     global capture_thread, pass_thread, messaging_thread, isRecording

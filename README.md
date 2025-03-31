@@ -6,7 +6,7 @@ Byakugan is an AVSS created in fulfilment of the requirements for the CM3070 Fin
 - The frontend (byakugan-fe), which is a React application, built using Vite
 - The backend (stream-app), which is a Python/Flask application
 
-The program has been dockerized. It exists as a command line launcher and a TKinter based GUI launcher.
+The program has been dockerized (ie. **YOU NEED DOCKER**). It exists as a command line launcher and a TKinter based GUI launcher.
 
 The GUI launcher is easy to run, just use **python manage.py** and follow the instructions.
 

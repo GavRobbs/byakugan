@@ -25,13 +25,15 @@ recording_queue = queue.Queue(maxsize=90)
 #The message queue takes the messages from object detection and uses them to activate the camera
 message_queue = queue.Queue(maxsize=1)
 
-recording_event = threading.Event()
 record_count = 0
 
-isRecording = True
+#These are threading.events and not booleans to prevent race conditions
+filming_event = threading.Event()
+recording_event = threading.Event()
+
 
 last_msg_time = 0
-suppress_msg_time = 200.0   
+suppress_msg_time = 100.0   
 
 # Global variable for the latest processed frame
 captured_frame = None
@@ -51,23 +53,33 @@ messaging_thread = None
 processing_method = 0
 
 def capture_and_process_frames():
-    global frame_queue, captured_frame, tracked_objects, frame_count, recording_queue, processing_method
+    global frame_queue, captured_frame, tracked_objects, frame_count, recording_queue, processing_method, filming_event
     source = get_camera_feed_source()
     print("The video source is " + str(source))
-    camera = cv.VideoCapture(source)
-    camera.set(cv.CAP_PROP_AUTOFOCUS, 0) # turn the autofocus off
+    for _ in range(10):
+        camera = cv.VideoCapture(source)
+        if camera.isOpened():
+            break
+        print("Retrying camera open...")
 
     if not camera.isOpened():
-        print("Error: Camera not opened!")
+        print("Failed to reopen camera after 10 retries.", flush=True)
         return
+
+    camera.set(cv.CAP_PROP_AUTOFOCUS, 0) # turn the autofocus off
     
     object_detector = MovingMedianObjectDetector() if processing_method == 0 else OpenCVMOG2ObjectDetector()
 
-    while isRecording:
+    while filming_event.is_set():
         success, frame = camera.read()
         if not success or frame is None:
-            print("Error: Failed to capture frame!")
-            break
+            print(f"read() success={success}, frame is None={frame is None}", flush=True)
+
+            if not camera.isOpened():
+                print("[camera] Device unexpectedly closed, attempting to reopen...", flush=True)
+                camera.release()
+                camera = cv.VideoCapture(source)
+            continue
 
         #We always resize the frame to cut down on what it takes to process it
         frame =  cv.resize(frame, (800, 600), interpolation=cv.INTER_AREA)
@@ -114,10 +126,10 @@ def capture_and_process_frames():
 def pass_frame():
     #This thread pulls the frame from the queue and sets it up for
     #display via the MJPEG stream created by the generate_stream function
-    global frame_queue, captured_frame
-    while isRecording:
+    global frame_queue, captured_frame, filming_event
+    while filming_event.is_set():
         try:
-            captured_frame = frame_queue.get(timeout=1)
+            captured_frame = frame_queue.get(timeout=0.1)
         except queue.Empty:
             continue
 
@@ -130,22 +142,21 @@ def add_to_mq(msg):
         message_queue.put_nowait(msg)
 
 def handle_messages():
-    global message_queue, record_count, recording_event  
+    global message_queue, record_count, recording_event, filming_event  
 
-    while isRecording:
+    while filming_event.is_set():
         try:
-            msg = message_queue.get(timeout = 1)
+            msg = message_queue.get(timeout = 0.1)
             print(msg)
             if not recording_event.is_set():
                 record_count = 0
                 recording_thread = threading.Thread(target=record_frames, args=[msg,], daemon=False)
-                recording_thread.start()
                 recording_event.set()
+                recording_thread.start()
         except queue.Empty:
             continue
         except Exception as e:
             print(f'Error in message handler: {e}')
-        time.sleep(2)
 
 def record_frames(desc=None):
     global recording_queue, recording_event, record_count
@@ -163,7 +174,7 @@ def record_frames(desc=None):
 
     firstFrame = True
 
-    while recording_event.is_set() and record_count < 600:
+    while recording_event.is_set() and record_count < 300:
 
         try:
             current_recorded_frame = recording_queue.get(timeout=1)
@@ -191,10 +202,19 @@ def record_frames(desc=None):
     recording_event.clear()
     video_writer.release()
 
+    print("[record_frames] Video saved and released.", flush=True)
+
     #Use ffmpeg to convert to mp4 for better browser support
     ffmpeg.input("/app/recordings/" + video_fn + ".avi").output("/app/recordings/" + video_fn + ".mp4", vcodec="libx264", acodec="aac", threads=2, video_bitrate='500K', preset='ultrafast').run(quiet=True)
+    
+    print("[record_frames] FFmpeg conversion complete.", flush=True)
     #Clear up the old file
     os.remove("/app/recordings/" + video_fn + ".avi")
+
+    #reset the camera because sometimes ffmpeg corrupts it
+    stop_capture_and_processing()
+    time.sleep(2)
+    start_capture_and_processing()
 
 
 
@@ -207,6 +227,35 @@ def generate_stream():
             frame = buffer.tobytes()
             yield (b'--frame\r\n'
                     b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+            
+@app.route("/api/platform", methods=["GET",])
+def platform_data():
+    return jsonify({
+        "system": platform.system(),
+        "release": platform.release(),
+        "version": platform.version(),
+        "machine": platform.machine(),
+        "platform_str": platform.platform()
+    }), 200
+
+@app.route("/api/status", methods=["GET"])
+def system_status():
+    status = {
+        "filming_event": filming_event.is_set(),
+        "recording_event": recording_event.is_set(),
+        "capture_thread_alive": capture_thread.is_alive() if capture_thread else False,
+        "pass_thread_alive": pass_thread.is_alive() if pass_thread else False,
+        "messaging_thread_alive": messaging_thread.is_alive() if messaging_thread else False,
+        "queue_lengths": {
+            "frame_queue": frame_queue.qsize(),
+            "recording_queue": recording_queue.qsize(),
+            "message_queue": message_queue.qsize()
+        },
+        "tracked_objects": len(tracked_objects),
+        "frame_count": frame_count
+    }
+
+    return jsonify(status), 200
             
 @app.route('/')
 @app.route('/<path:path>')
@@ -326,11 +375,11 @@ def recording_state():
 
 @app.route("/api/record_status", methods=["POST", "GET"])
 def recording_enabled():
-    global isRecording
+    global filming_event
 
     #We can use get to check if we are recording or not
     if request.method == "GET":
-        return jsonify({"recording" : "enabled" if isRecording else "disabled"}), 200
+        return jsonify({"recording" : "enabled" if filming_event.is_set() else "disabled"}), 200
     elif request.method != "POST":
         #Give an error if the method is not get or post
         return "", 405
@@ -341,7 +390,7 @@ def recording_enabled():
         return jsonify({"error": "Please include a new_state field with a value of \"enabled\" or \"disabled\""}), 400
     
     if data["new_state"].lower() == "enabled":
-        if not isRecording:
+        if not filming_event.is_set():
             #TODO: Start recording logic here
             start_capture_and_processing()       
             return jsonify({"status" : "Recording is now enabled"}), 201
@@ -373,36 +422,47 @@ def image_processor():
         start_capture_and_processing()
         return jsonify({"status" : "Frame processor changed successfully"}), 201
     
-@app.route("/api/platform", methods=["GET",])
-def platform_data():
-    return jsonify({
-        "system": platform.system(),
-        "release": platform.release(),
-        "version": platform.version(),
-        "machine": platform.machine(),
-        "platform_str": platform.platform()
-    }), 200
-    
 def start_capture_and_processing():
-    global capture_thread, pass_thread, messaging_thread, isRecording
+    global capture_thread, pass_thread, messaging_thread, filming_event
+
+    print("Capture and processing function started", flush=True)
+
+    if filming_event.is_set():
+        print("Film already running.")
+        return
+
+    filming_event.set()
+
     capture_thread = threading.Thread(target=capture_and_process_frames, daemon=True)
     pass_thread = threading.Thread(target=pass_frame, daemon=True)
     messaging_thread = threading.Thread(target=handle_messages, daemon=True)
-
-    isRecording = True
 
     capture_thread.start()
     pass_thread.start()
     messaging_thread.start()
 
 def stop_capture_and_processing():
-    global capture_thread, pass_thread, messaging_thread, isRecording, recording_event, frame_queue, recording_queue, message_queue
+    global capture_thread, pass_thread, messaging_thread, filming_event, recording_event, frame_queue, recording_queue, message_queue
+
+    print("Capture and processing function stopped", flush=True)
+    
     recording_event.clear()
+    filming_event.clear()
 
-    isRecording = False
+    #Join the threads to really make sure they're done
+    #This fixed a bug I found where the camera refused to restart
+    #and it was also partially caused by the race condition of using filming_event as a bool instead
+    #of a thread.event
+    if capture_thread is not None:
+        capture_thread.join(timeout=2)
+    if pass_thread is not None:
+        pass_thread.join(timeout=2)
+    if messaging_thread is not None:
+        messaging_thread.join(timeout=2)
 
-    #Sleep to give our threads time to wrap up
-    time.sleep(2)
+    capture_thread = None
+    pass_thread = None
+    messaging_thread = None
 
     #We empty the queues here to prevent erroneous data from sticking around if we restart    
     while True:
@@ -426,12 +486,17 @@ def stop_capture_and_processing():
 
 if __name__ == "__main__":
 
+    recording_event.clear()
+    filming_event.clear()
+
     start_capture_and_processing()
 
     bot_thread = TelegramBotThread()
     bot_thread.start() 
     
     app.run('0.0.0.0', port=5000)
+    print("[main] Flask server started", flush=True)
 
     recording_event.clear()
+    filming_event.clear()
 

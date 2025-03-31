@@ -9,6 +9,7 @@ from enum import Enum
 from decouple import config
 from io import BytesIO
 import base64
+import os
 
 #Telegram exposes a rest API for bot communication
 
@@ -83,6 +84,9 @@ class BotMainState(BotState):
 
         print("Sending message with image")
 
+        print(f"Preparing to send image: {img_path}", flush=True)
+        print(f"Exists: {os.path.exists('/app/thumbnails/' + img_path)}", flush=True)
+
         files = {
             "photo" : open(f'/app/thumbnails/{img_path}', 'rb')
         }
@@ -97,6 +101,8 @@ class BotMainState(BotState):
             response = requests.post(f"{self.owner.BASE_URL}/sendPhoto", data=payload, files=files, timeout=timeout)
         except requests.exceptions.Timeout:
             print("Timed out trying to send message with image", flush=True)
+        except Exception as e:
+            print(f"Unhandled error sending image: {e}", flush=True)
     
     def send_message(self, msg_txt, timeout=60):
         print("Sending plain text message")
@@ -206,7 +212,7 @@ class TelegramBotThread(threading.Thread):
                 if new_state is not None:
                     self.current_state = new_state
 
-            time.sleep(1)
+            time.sleep(0.5)
 
     def add_message_to_queue(self, message):
         try:
